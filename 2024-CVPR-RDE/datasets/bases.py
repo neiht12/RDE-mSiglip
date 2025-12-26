@@ -1,15 +1,17 @@
+
 from torch.utils.data import Dataset
 import logging
 import torch
-from utils.iotools import read_image
-from utils.simple_tokenizer import SimpleTokenizer
-from prettytable import PrettyTable
 import random
 import numpy as np
 import os
+from prettytable import PrettyTable
+from transformers import AutoTokenizer
 
+# Giả định bạn có file utils/iotools.py chứa hàm read_image
+from utils.iotools import read_image 
 
-def inject_noisy_correspondence(dataset, noisy_rate, noisy_file =None):
+def inject_noisy_correspondence(dataset, noisy_rate, noisy_file=None):
     logger = logging.getLogger("RDE.dataset")
     nums = len(dataset)
     dataset_copy = dataset.copy()
@@ -36,17 +38,22 @@ def inject_noisy_correspondence(dataset, noisy_rate, noisy_file =None):
 
     real_correspondeces = []
     for i in range(nums):
-        if noisy_inx[i]== i:
+        if noisy_inx[i] == i:
             real_correspondeces.append(1)
         else:
             real_correspondeces.append(0)
         # pid, real_pid, image_id, image_path, text
-        tmp = (pids[i],image_ids[i],images[i],captions[noisy_inx[i]])
+        tmp = (pids[i], image_ids[i], images[i], captions[noisy_inx[i]])
         dataset[i] = tmp
-    logger.info(real_correspondeces[0:10])
-    logger.info('=>Noisy rate: {},  clean pairs: {}, noisy pairs: {}, total pairs: {}'.format(noisy_rate, np.sum(real_correspondeces),nums-np.sum(real_correspondeces), nums))
+    
+    # Chỉ log 10 phần tử đầu để debug
+    logger.info(f"First 10 correspondence flags: {real_correspondeces[0:10]}")
+    logger.info('=> Noisy rate: {}, Clean pairs: {}, Noisy pairs: {}, Total pairs: {}'.format(
+        noisy_rate, np.sum(real_correspondeces), nums - np.sum(real_correspondeces), nums
+    ))
 
     return dataset, np.array(real_correspondeces)
+
 
 class BaseDataset(object):
     """
@@ -64,8 +71,6 @@ class BaseDataset(object):
             self.val_id_container), len(self.val_annos), len(
                 self.val['captions'])
 
-        # TODO use prettytable print comand line table
-
         self.logger.info(f"{self.__class__.__name__} Dataset statistics:")
         table = PrettyTable(['subset', 'ids', 'images', 'captions'])
         table.add_row(
@@ -75,24 +80,6 @@ class BaseDataset(object):
         table.add_row(['val', num_val_pids, num_val_imgs, num_val_captions])
         self.logger.info('\n' + str(table))
 
-
-def tokenize(caption: str, tokenizer, text_length=77, truncate=True) -> torch.LongTensor:
-    sot_token = tokenizer.encoder["<|startoftext|>"]
-    eot_token = tokenizer.encoder["<|endoftext|>"]
-    tokens = [sot_token] + tokenizer.encode(caption) + [eot_token]
-
-    result = torch.zeros(text_length, dtype=torch.long)
-    if len(tokens) > text_length:
-        if truncate:
-            tokens = tokens[:text_length]
-            tokens[-1] = eot_token
-        else:
-            raise RuntimeError(
-                f"Input {caption} is too long for context length {text_length}"
-            )
-    result[:len(tokens)] = torch.tensor(tokens)
-    return result
- 
 
 class ImageDataset(Dataset):
     def __init__(self, image_pids, img_paths, transform=None):
@@ -107,7 +94,6 @@ class ImageDataset(Dataset):
         pid, img_path = self.image_pids[index], self.img_paths[index]
         img = read_image(img_path)
         
- 
         if self.transform is not None:
             img = self.transform(img)
         return pid, img
@@ -117,29 +103,41 @@ class TextDataset(Dataset):
     def __init__(self,
                  caption_pids,
                  captions,
-                 text_length: int = 77,
+                 text_length: int = 64, # SigLIP default is often 64
                  truncate: bool = True):
         self.caption_pids = caption_pids
         self.captions = captions
         self.text_length = text_length
         self.truncate = truncate
-        self.tokenizer = SimpleTokenizer()
+        
+        # Init Tokenizer for Google SigLIP
+        self.tokenizer = AutoTokenizer.from_pretrained("google/siglip-base-patch16-256-multilingual")
   
     def __len__(self):
         return len(self.caption_pids)
 
     def __getitem__(self, index):
         pid, caption = self.caption_pids[index], self.captions[index]
-        caption = tokenize(caption, tokenizer=self.tokenizer, text_length=self.text_length, truncate=self.truncate)
+        
+        # Tokenize using HuggingFace logic
+        inputs = self.tokenizer(
+            caption, 
+            padding="max_length", 
+            truncation=self.truncate, 
+            max_length=self.text_length, 
+            return_tensors="pt"
+        )
+        # Squeeze to remove batch dimension: [1, 64] -> [64]
+        caption_tensor = inputs["input_ids"].squeeze(0)
 
-        return pid, caption
+        return pid, caption_tensor
 
 
 class ImageTextDataset(Dataset):
     def __init__(self,
-                 dataset,args,
+                 dataset, args,
                  transform=None,
-                 text_length: int = 77,
+                 text_length: int = 64,
                  truncate: bool = True):
         self.dataset = dataset
         self.transform = transform
@@ -147,9 +145,18 @@ class ImageTextDataset(Dataset):
         self.truncate = truncate
         self.txt_aug = args.txt_aug
         self.img_aug = args.img_aug
-       
-        self.dataset, self.real_correspondences = inject_noisy_correspondence(dataset,args.noisy_rate,args.noisy_file)
-        self.tokenizer = SimpleTokenizer()
+        
+        self.dataset, self.real_correspondences = inject_noisy_correspondence(dataset, args.noisy_rate, args.noisy_file)
+        
+        # Init Tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained("google/siglip-base-patch16-256-multilingual")
+        
+        # Prepare special tokens for Augmentation
+        self.vocab_size = self.tokenizer.vocab_size
+        self.pad_id = self.tokenizer.pad_token_id
+        self.eos_id = self.tokenizer.eos_token_id
+        # Fallback to UNK if MASK doesn't exist (SentencePiece typically doesn't have [MASK])
+        self.mask_id = self.tokenizer.mask_token_id if self.tokenizer.mask_token_id is not None else self.tokenizer.unk_token_id
 
     def __len__(self):
         return len(self.dataset)
@@ -161,43 +168,78 @@ class ImageTextDataset(Dataset):
         if self.transform is not None:
             img = self.transform(img)
         
-        caption_tokens = tokenize(caption, tokenizer=self.tokenizer, text_length=self.text_length, truncate=self.truncate)
+        # 1. Tokenize
+        inputs = self.tokenizer(
+            caption, 
+            padding="max_length", 
+            truncation=self.truncate, 
+            max_length=self.text_length, 
+            return_tensors="pt"
+        )
+        caption_tokens = inputs["input_ids"].squeeze(0)
+
+        # 2. Text Augmentation
         if self.txt_aug:
-            caption_tokens = self.txt_data_aug(caption_tokens.cpu().numpy())
+            caption_tokens = self.txt_data_aug(caption_tokens)
         
         ret = {
-        'pids': pid,
-        'image_ids': image_id,
-        'images': img,
-        'caption_ids': caption_tokens,
-        'index':index,
+            'pids': pid,
+            'image_ids': image_id,
+            'images': img,
+            'caption_ids': caption_tokens,
+            'index': index,
         }
 
         return ret
 
     def txt_data_aug(self, tokens):
-        mask = self.tokenizer.encoder["<|mask|>"]
-        token_range = list(range(1, len(self.tokenizer.encoder)-3)) # 1 ~ 49405
-        new_tokens = np.zeros_like(tokens)
+        # Chuyển tensor sang numpy để xử lý
+        if isinstance(tokens, torch.Tensor):
+            tokens = tokens.numpy()
+            
+        # [CẤU HÌNH CHO SIGLIP]
+        VOCAB_SIZE = 250002        # Giới hạn từ điển của SigLIP
+        MASK_TOKEN = 0             
+        PAD_TOKEN = 1              # SigLIP pad_token_id là 1
+        
+        # Khởi tạo mảng kết quả full Padding (1) thay vì 0
+        new_tokens = np.full_like(tokens, PAD_TOKEN)
         aug_tokens = []
+        
         for i, token in enumerate(tokens):
-            if 0 < token < 49405:
+            # Chỉ augment các token hợp lệ 
+            
+            if 1 < token < VOCAB_SIZE:
                 prob = random.random()
-                # mask token with 15% probability
+                
+                # Augment với xác suất 20%
                 if prob < 0.20:
                     prob /= 0.20
-                    # 50% randomly change token to mask token
+                    
+                    # 60% đổi thành MASK token
                     if prob < 0.6:
-                        aug_tokens.append(mask) 
-                    # 20% randomly change token to random token
+                        aug_tokens.append(MASK_TOKEN)
+                        
+                    # 20% đổi thành RANDOM token
                     elif prob < 0.8:
-                        aug_tokens.append(random.choice(token_range)) # -> rest 10% randomly keep current token
+                        # Dùng randint trực tiếp thay vì tạo list(range(...)) để tránh lag
+                        # Random từ 2 đến VOCAB_SIZE - 1 (tránh pad/unk)
+                        random_token = random.randint(2, VOCAB_SIZE - 1)
+                        aug_tokens.append(random_token)
+                        
                     else:
-                        None # # 30% randomly remove
+                        # 20% còn lại: Xóa token (không append gì cả)
+                        pass 
                 else:
-                    # no masking token (will be ignored by loss function later)
-                    aug_tokens.append(tokens[i])
+                    # Giữ nguyên token
+                    aug_tokens.append(token)
             else:
-                aug_tokens.append(tokens[i])
-        new_tokens[0:len(aug_tokens)] = np.array(aug_tokens)
-        return torch.tensor(new_tokens)
+                # Token đặc biệt (Padding, v.v...) giữ nguyên
+                aug_tokens.append(token)
+        
+        # Đưa danh sách đã augment vào mảng kết quả
+        
+        valid_len = min(len(aug_tokens), len(tokens))
+        new_tokens[:valid_len] = aug_tokens[:valid_len]
+        
+        return torch.tensor(new_tokens, dtype=torch.long)
