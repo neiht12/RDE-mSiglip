@@ -1,4 +1,3 @@
-%%writefile /kaggle/working/RDE/2024-CVPR-RDE/run_rde.sh
 
 root_dir=/kaggle/input/cuhk-pedes
 tau=0.015 
