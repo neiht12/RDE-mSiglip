@@ -8,7 +8,7 @@ import os
 from prettytable import PrettyTable
 from transformers import AutoTokenizer
 
-# Giả định bạn có file utils/iotools.py chứa hàm read_image
+
 from utils.iotools import read_image 
 
 def inject_noisy_correspondence(dataset, noisy_rate, noisy_file=None):

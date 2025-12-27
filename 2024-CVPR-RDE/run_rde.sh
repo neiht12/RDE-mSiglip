@@ -1,7 +1,8 @@
-#!/bin/bash
-root_dir=/home/qinyang/projects/data
+%%writefile /kaggle/working/RDE/2024-CVPR-RDE/run_rde.sh
+
+root_dir=/kaggle/input/cuhk-pedes
 tau=0.015 
-margin=0.1
+margin=0.3
 noisy_rate=0.0  #0.0 0.2 0.5 0.8
 select_ratio=0.3
 loss=TAL
@@ -9,6 +10,10 @@ DATASET_NAME=CUHK-PEDES
 # CUHK-PEDES ICFG-PEDES RSTPReid
 
 noisy_file=./noiseindex/${DATASET_NAME}_${noisy_rate}.npy
+
+# Tên model chuẩn của SigLIP trên Hugging Face
+MODEL_NAME="google/siglip-base-patch16-256-multilingual"
+
 CUDA_VISIBLE_DEVICES=0 \
     python train.py \
     --noisy_rate $noisy_rate \
@@ -16,7 +21,7 @@ CUDA_VISIBLE_DEVICES=0 \
     --name RDE \
     --img_aug \
     --txt_aug \
-    --batch_size 64 \
+    --batch_size 32 \
     --select_ratio $select_ratio \
     --tau $tau \
     --root_dir $root_dir \
@@ -24,5 +29,5 @@ CUDA_VISIBLE_DEVICES=0 \
     --margin $margin \
     --dataset_name $DATASET_NAME \
     --loss_names ${loss}+sr${select_ratio}_tau${tau}_margin${margin}_n${noisy_rate}  \
-    --num_epoch 60 
- 
+    --num_epoch 60 \
+    --pretrain_choice $MODEL_NAME
