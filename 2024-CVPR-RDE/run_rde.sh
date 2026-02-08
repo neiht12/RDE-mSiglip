@@ -1,5 +1,4 @@
-
-root_dir=/kaggle/input/cuhk-pedes
+root_dir=/kaggle/input/training-rde
 tau=0.015 
 margin=0.3
 noisy_rate=0.0  #0.0 0.2 0.5 0.8
@@ -10,8 +9,7 @@ DATASET_NAME=CUHK-PEDES
 
 noisy_file=./noiseindex/${DATASET_NAME}_${noisy_rate}.npy
 
-# Tên model chuẩn của SigLIP trên Hugging Face
-MODEL_NAME="google/siglip-base-patch16-256-multilingual"
+MODEL_NAME="google/siglip-base-patch16-224"
 
 CUDA_VISIBLE_DEVICES=0 \
     python train.py \
@@ -28,5 +26,5 @@ CUDA_VISIBLE_DEVICES=0 \
     --margin $margin \
     --dataset_name $DATASET_NAME \
     --loss_names ${loss}+sr${select_ratio}_tau${tau}_margin${margin}_n${noisy_rate}  \
-    --num_epoch 60 \
+    --num_epoch 45 \
     --pretrain_choice $MODEL_NAME

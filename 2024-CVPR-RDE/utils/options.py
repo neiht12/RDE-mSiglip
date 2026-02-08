@@ -1,4 +1,3 @@
-
 import argparse
 
 def get_args():
@@ -15,14 +14,14 @@ def get_args():
     parser.add_argument("--name", default="baseline", help="experiment name to save")
     parser.add_argument("--output_dir", default="logs")
     parser.add_argument("--log_period", default=100)
-    parser.add_argument("--eval_period", default=1)
+    parser.add_argument("--eval_period", type = int, default=5)
     parser.add_argument("--val_dataset", default="test") 
     parser.add_argument("--resume", default=False, action='store_true')
     parser.add_argument("--resume_ckpt_file", default="", help='resume from ...')
 
     ######################## model general settings ########################
     # [CHANGE 1] Sửa tên model thành Google SigLIP
-    parser.add_argument("--pretrain_choice", default='google/siglip-base-patch16-256-multilingual') 
+    parser.add_argument("--pretrain_choice", default='google/siglip-base-patch16-224') 
     
     parser.add_argument("--temperature", type=float, default=0.02, help="initial temperature value")
     parser.add_argument("--img_aug", default=False, action='store_true')
@@ -38,7 +37,7 @@ def get_args():
     parser.add_argument("--loss_names", default='sdm+id+mlm', help="which loss to use")
 
     ######################## vison trainsformer settings ########################
-    # [NOTE] Giữ nguyên 384, 128 cho ReID. SigLIP Wrapper đã bật interpolate_pos_encoding để xử lý việc lệch size này.
+    # Giữ nguyên 384, 128 cho ReID. SigLIP Wrapper đã bật interpolate_pos_encoding để xử lý việc lệch size này.
     parser.add_argument("--img_size", type=tuple, default=(384, 128))
     parser.add_argument("--stride_size", type=int, default=16)
 
@@ -46,13 +45,12 @@ def get_args():
     # [CHANGE 2] Sửa text length về 64 (SigLIP default)
     parser.add_argument("--text_length", type=int, default=64)
     
-    # [CHANGE 3] Sửa vocab size lên 250002 (SigLIP Multilingual)
-    parser.add_argument("--vocab_size", type=int, default=250002)
+    # [CHANGE 3] Sửa vocab size từ 250002 về 32002 (SigLIP )
+    parser.add_argument("--vocab_size", type=int, default=32002)
 
     ######################## solver ########################
     parser.add_argument("--optimizer", type=str, default="Adam", help="[SGD, Adam, Adamw]")
     
-    # [NOTE] Learning rate 1e-5 là RẤT TỐT cho SigLIP. Đừng tăng lên.
     parser.add_argument("--lr", type=float, default=1e-5) 
     
     parser.add_argument("--bias_lr_factor", type=float, default=2.)
@@ -79,7 +77,7 @@ def get_args():
     parser.add_argument("--num_instance", type=int, default=4)
     parser.add_argument("--root_dir", default="/home/qinyang/projects/data")
     parser.add_argument("--batch_size", type=int, default=128)
-    parser.add_argument("--test_batch_size", type=int, default=512)
+    parser.add_argument("--test_batch_size", type=int, default=128)
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--test", dest='training', default=True, action='store_false')
 
