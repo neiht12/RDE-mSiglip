@@ -111,7 +111,7 @@ class TextDataset(Dataset):
         self.truncate = truncate
         
         # Init Tokenizer for Google SigLIP
-        self.tokenizer = AutoTokenizer.from_pretrained("google/siglip-base-patch16-256-multilingual")
+        self.tokenizer = AutoTokenizer.from_pretrained("google/siglip-base-patch16-224")
   
     def __len__(self):
         return len(self.caption_pids)
@@ -149,7 +149,7 @@ class ImageTextDataset(Dataset):
         self.dataset, self.real_correspondences = inject_noisy_correspondence(dataset, args.noisy_rate, args.noisy_file)
         
         # Init Tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained("google/siglip-base-patch16-256-multilingual")
+        self.tokenizer = AutoTokenizer.from_pretrained("google/siglip-base-patch16-224")
         
         # Prepare special tokens for Augmentation
         self.vocab_size = self.tokenizer.vocab_size
@@ -198,7 +198,7 @@ class ImageTextDataset(Dataset):
             tokens = tokens.numpy()
             
         # [CẤU HÌNH CHO SIGLIP]
-        VOCAB_SIZE = 250002        # Giới hạn từ điển của SigLIP
+        VOCAB_SIZE = 32002        # Giới hạn từ điển của SigLIP
         MASK_TOKEN = 0             
         PAD_TOKEN = 1              # SigLIP pad_token_id là 1
         
