@@ -9,7 +9,7 @@ DATASET_NAME=CUHK-PEDES
 
 noisy_file=./noiseindex/${DATASET_NAME}_${noisy_rate}.npy
 
-MODEL_NAME="google/siglip-base-patch16-224"
+MODEL_NAME="google/siglip-large-patch16-256"
 
 CUDA_VISIBLE_DEVICES=0 \
     python train.py \
