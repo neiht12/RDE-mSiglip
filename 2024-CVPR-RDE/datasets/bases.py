@@ -111,7 +111,7 @@ class TextDataset(Dataset):
         self.truncate = truncate
         
         # Init Tokenizer for Google SigLIP
-        self.tokenizer = AutoTokenizer.from_pretrained("google/siglip-base-patch16-224")
+        self.tokenizer = AutoTokenizer.from_pretrained("google/siglip-large-patch16-256")
   
     def __len__(self):
         return len(self.caption_pids)
@@ -149,7 +149,7 @@ class ImageTextDataset(Dataset):
         self.dataset, self.real_correspondences = inject_noisy_correspondence(dataset, args.noisy_rate, args.noisy_file)
         
         # Init Tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained("google/siglip-base-patch16-224")
+        self.tokenizer = AutoTokenizer.from_pretrained("google/siglip-large-patch16-256")
         
         # Prepare special tokens for Augmentation
         self.vocab_size = self.tokenizer.vocab_size

@@ -21,7 +21,7 @@ def get_args():
 
     ######################## model general settings ########################
     # [CHANGE 1] Sửa tên model thành Google SigLIP
-    parser.add_argument("--pretrain_choice", default='google/siglip-base-patch16-224') 
+    parser.add_argument("--pretrain_choice", default='google/siglip-large-patch16-256') 
     
     parser.add_argument("--temperature", type=float, default=0.02, help="initial temperature value")
     parser.add_argument("--img_aug", default=False, action='store_true')
